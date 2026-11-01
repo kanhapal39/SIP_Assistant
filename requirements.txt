@@ -1,0 +1,6 @@
+# Runtime dependencies (used by Streamlit Community Cloud).
+streamlit==1.50.0
+groq==1.0.0
+python-dotenv==1.2.1
+scikit-learn==1.6.1
+PyYAML==6.0.3
