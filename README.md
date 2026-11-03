@@ -6,6 +6,21 @@ An eval-gated RAG chatbot MVP that helps first-time Indian mutual fund SIP inves
 
 > This assistant explains SIP mechanics and terminology. It does not give investment advice.
 
+## Live app
+
+| Link | What you get |
+|---|---|
+| **https://sip-assistant.streamlit.app/~/+/** | The app on its own, with no Streamlit Cloud badges. Use this one to share. |
+| https://sip-assistant.streamlit.app | The same app inside Streamlit Cloud's page, with its "Created by / Hosted with Streamlit" badges. Use this one to wake the app up. |
+
+**If the app has been idle:** Streamlit Community Cloud puts free apps to sleep after a period with no visitors. The badge-free `/~/+/` link can't wake it and is likely to show an error instead. To fix it:
+
+1. Open the main link, https://sip-assistant.streamlit.app.
+2. If it says the app has gone to sleep, click **"Yes, get this app back up!"** and wait about a minute.
+3. The `/~/+/` link then works again.
+
+`/~/+/` is Streamlit Cloud's internal path for the app itself, not an officially documented URL. If it ever stops working, use the main link.
+
 ## How it works
 
 Every question goes through four stages in order. The first three are deterministic and don't call the LLM.
@@ -104,10 +119,12 @@ These tests are offline: the LLM tests use a fake client, so no key is needed.
 
 1. Push the repo to GitHub (without `.env`).
 2. On share.streamlit.io, create an app pointing at `app.py`.
-3. Under **Advanced settings → Secrets**, add:
-   ```toml
-   GROQ_API_KEY = "your_key_here"
-   ```
+3. Open **Advanced settings** before deploying:
+   - Set **Python version** to **3.12**. Newer defaults have no pre-built packages for the pinned `numpy` and `scikit-learn`, so the install fails and the app crashes with `ModuleNotFoundError`. The version can only be chosen at deploy time; to change it later, delete and redeploy the app.
+   - Under **Secrets**, add:
+     ```toml
+     GROQ_API_KEY = "your_key_here"
+     ```
 
 `app.py` reads `st.secrets["GROQ_API_KEY"]` when the environment variable isn't set.
 
