@@ -15,6 +15,7 @@ if not os.environ.get("GROQ_API_KEY"):
     except Exception:
         pass
 
+import demo_screens  # noqa: E402
 import guardrails  # noqa: E402
 import llm  # noqa: E402
 import pipeline  # noqa: E402
@@ -58,6 +59,7 @@ HEADLINES = {
 }
 
 IST = ZoneInfo("Asia/Kolkata")
+BRIDGE = "bridge"  # fixed opening line from the exit-intent flow
 PRIMARY = "#0D7A5F"
 
 
@@ -139,8 +141,13 @@ header[data-testid="stHeader"], [data-testid="stSidebar"], [data-testid="stSideb
 .sa-hdr-icons span {{ width:38px; height:38px; border-radius:50%; display:flex; align-items:center; justify-content:center; }}
 .sa-hdr-icons .shield {{ background:rgba(255,255,255,.16); }}
 .sa-hdr-icons .profile {{ background:#0A4A3A; }}
-.st-key-clear button {{ width:24px; height:24px; min-height:0; padding:0; border-radius:50%;
+.st-key-to_dash {{ align-self:flex-end; margin-bottom:1px; }}
+.st-key-clear button, .st-key-to_dash button {{ width:24px; height:24px; min-height:0; padding:0; border-radius:50%;
   background:rgba(255,255,255,.18); border:none; color:#fff; }}
+.st-key-to_dash button p {{ display:none; }}
+.st-key-to_dash [data-testid="stIconMaterial"] {{ font-size:15px; }}
+.st-key-to_dash button {{ background:rgba(255,255,255,.18); border:none; color:#fff; min-height:0; padding:0; border-radius:50%; }}
+.st-key-to_dash button:hover {{ background:rgba(255,255,255,.32); color:#fff; }}
 .st-key-clear button:hover {{ background:rgba(255,255,255,.32); color:#fff; }}
 .st-key-clear button p {{ display:none; }}
 .st-key-clear [data-testid="stIconMaterial"] {{ font-size:16px; }}
@@ -150,6 +157,7 @@ header[data-testid="stHeader"], [data-testid="stSidebar"], [data-testid="stSideb
   .sa-hdr-av {{ width:40px; height:40px; }}
   .sa-hdr-icons {{ gap:6px; }}
   .sa-hdr-icons span {{ width:34px; height:34px; }}
+  .sa-hdr-icons .shield {{ display:none; }}
   .sa-status {{ font-size:12px; line-height:15px; }}
 }}
 
@@ -212,6 +220,13 @@ header[data-testid="stHeader"], [data-testid="stSidebar"], [data-testid="stSideb
 .st-key-starters button p {{ font-size:15px; font-weight:500; text-align:left; }}
 .st-key-starters button::after {{ content:"→"; margin-left:auto; font-size:18px; color:var(--text-2); }}
 .st-key-starters button:hover {{ border-color:var(--primary); color:var(--primary); box-shadow:var(--shadow-2); }}
+.st-key-followups {{ gap:8px !important; margin:10px 0 0 44px; }}
+.st-key-followups button {{ justify-content:flex-start; border-radius:9999px; background:var(--primary-soft); border:1px solid var(--chip-line);
+  padding:9px 16px; min-height:0; color:var(--primary); }}
+.st-key-followups button p {{ font-size:14px; font-weight:600; text-align:left; }}
+.st-key-followups button:hover {{ border-color:var(--primary); color:var(--primary); }}
+.st-key-quick .st-key-qa_back_sip button {{ background:var(--primary); border-color:var(--primary); color:#fff; }}
+.st-key-quick .st-key-qa_back_sip button:hover {{ background:var(--primary-hover); color:#fff; }}
 
 /* Quick-action chips and their tray: one row, scrolls sideways on narrow screens */
 .st-key-quick, .st-key-tray {{ gap:8px !important; flex-wrap:nowrap !important; overflow-x:auto; padding-bottom:2px; scrollbar-width:none; }}
@@ -274,6 +289,10 @@ def render(msg: dict) -> None:
         return
 
     kind = msg.get("kind")
+    if kind == BRIDGE:
+        _html(f'<div class="sa-row"><div class="sa-av">{_svg(LEAF, PRIMARY)}</div><div class="sa-col">'
+              f'<div class="sa-bubble">{_esc(msg["text"])}<div class="sa-card-foot">{time}</div></div></div></div>')
+        return
     if kind == pipeline.ANSWER:
         avatar = f'<div class="sa-av">{_svg(LEAF, PRIMARY)}</div>'
         card = (f'<div class="sa-bubble">{_esc(msg["text"])}'
@@ -328,12 +347,44 @@ def clear_chat() -> None:
     st.session_state.tray = None
 
 
+def show_view(view: str) -> None:
+    st.session_state.view = view
+
+
+def open_chat_from_exit(opening: str, followups: list) -> None:
+    # Exit-intent hand-off: show a fixed opening line (no LLM call); anything asked next
+    # goes through the normal pipeline. The SIP stays open and can still be redeemed.
+    st.session_state.view = "chat"
+    st.session_state.tray = None
+    st.session_state.from_sip = True
+    st.session_state.messages.append({"role": "assistant", "kind": BRIDGE, "text": opening,
+                                      "followups": followups, "time": _now()})
+
+
+def back_to_sip() -> None:
+    st.session_state.from_sip = False
+    st.session_state.view = "dashboard"
+    st.session_state.sheet = "fund"
+
+
+def start_sip(question: str) -> None:
+    # Dashboard "Start a SIP" → open the chat with an explainer question.
+    st.session_state.view = "chat"
+    ask(question)
+
+
 st.set_page_config(page_title="SIP Assistant", page_icon="📘", layout="centered", initial_sidebar_state="collapsed")
 _html(CSS)
 
 st.session_state.setdefault("messages", [])
 st.session_state.setdefault("tray", None)
 st.session_state.setdefault("started", _now())
+_qv = st.query_params.get("view")
+st.session_state.setdefault("view", _qv if _qv in demo_screens.VIEWS else "chat")
+
+if st.session_state.view in demo_screens.VIEWS:
+    demo_screens.render(start_sip, open_chat_from_exit)
+    st.stop()
 
 # Bottom area (pinned above the input): optional tray, quick-action chips, input.
 bottom = st._bottom if hasattr(st, "_bottom") else st.container()
@@ -344,6 +395,8 @@ with bottom:
             for i, q in enumerate(QUICK_ACTIONS[tray][2]):
                 st.button(q, key=f"tray_{tray}_{i}", on_click=ask, args=(q,))
     with st.container(key="quick", horizontal=True):
+        if st.session_state.get("from_sip"):
+            st.button("Back to your SIP", key="qa_back_sip", icon=":material/arrow_back:", on_click=back_to_sip)
         for name, (label, icon, _) in QUICK_ACTIONS.items():
             st.button(label, key=f"qa_{name}", icon=icon, on_click=toggle_tray, args=(name,))
         st.button("Why no advice?", key="qa_advice", icon="⚖️", on_click=why_no_advice)
@@ -358,6 +411,8 @@ with st.container(key="hdr", horizontal=True):
     _html(f'<div class="sa-hdr"><div class="sa-hdr-av">{_svg(LEAF, "#fff", 22)}<span class="sa-dot"></span></div><div>'
           f'<div class="sa-title">SIP Assistant <span class="sa-badge">Assistant Chat</span></div>'
           f'<div class="sa-status"><span class="sa-dot"></span>Online · SIP terms &amp; mechanics only</div></div></div>')
+    st.button("Dashboard", key="to_dash", icon=":material/space_dashboard:", help="Demo dashboard",
+              on_click=show_view, args=("dashboard",))
     st.button("Clear chat", key="clear", icon=":material/delete_sweep:", help="Clear chat", on_click=clear_chat)
     _html(f'<div class="sa-hdr-icons"><span class="shield">{_svg(SHIELD_CHECK, "#BFF3E0")}</span>'
           f'<span class="profile">{_svg(USER, "#fff")}</span></div>')
@@ -380,6 +435,12 @@ if not st.session_state.messages:
 
 for m in st.session_state.messages:
     render(m)
+
+last = st.session_state.messages[-1] if st.session_state.messages else None
+if last and last.get("kind") == BRIDGE and not question:
+    with st.container(key="followups"):
+        for i, q in enumerate(last.get("followups", [])):
+            st.button(q, key=f"follow_{i}", on_click=ask, args=(q,))
 
 if question:
     slot = st.empty()
